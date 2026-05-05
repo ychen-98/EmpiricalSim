@@ -1,6 +1,6 @@
 ################################################################################################
 ####  example_usage.R
-####  Example usage for empirical_simulation.R
+####  Example usage for empirical_simulation_survival.R
 ####  Demonstrates all input paths:
 ####    1. Survival-only with pre-specified percentiles (no patient data)
 ####    2. Survival-only with raw target data (backup path)
@@ -11,7 +11,7 @@
 ####  Last update: 05/05/2026
 ################################################################################################
 
-source("empirical_simulation.R")
+source("empirical_simulation_survival.R")
 
 set.seed(42)
 
