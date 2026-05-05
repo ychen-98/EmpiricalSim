@@ -69,6 +69,8 @@ col_types <- c("survival", "continuous", "binary", "ordinal")
 # Target summaries — one value per non-survival column
 tgt_means <- c(age = 55.0, sex = 0.50, ecog = 0.90)
 tgt_sds   <- c(age = 8.0,  sex = 0.50, ecog = 0.70)
+tgt_mins  <- c(age = 25.0, sex = 0.0,  ecog = 0.0)
+tgt_maxs  <- c(age = 85.0, sex = 1.0,  ecog = 2.0)
 
 # Target survival percentiles
 surv_pctl <- data.frame(
@@ -82,6 +84,9 @@ result <- run_simulation(
   N_sim         = 5000,
   target_means  = tgt_means,
   target_sds    = tgt_sds,
+  target_mins   = tgt_mins,
+  target_maxs   = tgt_maxs,
+  scaling_method = "range",
   surv_target_percentiles = surv_pctl,
   surv_time_col = "time"
 )
@@ -95,7 +100,9 @@ result <- run_simulation(
   types        = c("continuous", "binary", "ordinal"),
   N_sim        = 3000,
   target_means = c(age = 58.0, sex = 0.55, ecog = 0.80),
-  target_sds   = c(age = 9.0,  sex = 0.50, ecog = 0.65)
+  target_sds   = c(age = 9.0,  sex = 0.50, ecog = 0.65),
+  target_mins  = c(age = 30.0, sex = 0.0,  ecog = 0.0),
+  target_maxs  = c(age = 88.0, sex = 1.0,  ecog = 2.0)
 )
 ```
 
@@ -108,9 +115,9 @@ The framework supports two input paths. The primary path uses summary statistics
 | Endpoint type | What you provide |
 |---------------|-----------------|
 | Survival | `target_percentiles`: a data.frame with `q_level` and `time_val` columns (minimum 3 rows) |
-| Continuous | `target_means` and `target_sds` (one element per non-survival column) |
-| Binary | `target_means` (proportion) and `target_sds` |
-| Ordinal | `target_means` and `target_sds` |
+| Continuous | `target_means`, `target_sds`, `target_mins`, `target_maxs` (one element per non-survival column) |
+| Binary | `target_means` (proportion), `target_sds`, `target_mins`, `target_maxs` |
+| Ordinal | `target_means`, `target_sds`, `target_mins`, `target_maxs` |
 
 ### Backup: raw target data
 
@@ -170,11 +177,13 @@ With 3 percentiles (minimum), SL/low share the lowest level and SH/high share th
 
 The `scaling_method` parameter in `run_simulation()` controls how tau and delta are computed:
 
-| Method | Description | Requires `dat_target`? |
-|--------|-------------|----------------------|
-| `"summary"` (default) | tau = 1, delta = target_mean − reference_mean | No |
-| `"range"` | Maps reference range to target range | Yes |
-| `"manual"` | User-supplied `tau_manual` / `delta_manual` | No |
+| Method | Description | Required inputs |
+|--------|-------------|----------------|
+| `"range"` (default) | Maps reference min/max to target min/max | `target_mins`, `target_maxs` |
+| `"summary"` | tau = 1, delta = target_mean − reference_mean | `target_means` only |
+| `"manual"` | User-supplied `tau_manual` / `delta_manual` | `tau_manual`, `delta_manual` |
+
+All methods also require `target_means` and `target_sds` for the alpha/beta shape-matching step. The scaling method only affects how tau and delta are derived.
 
 ### Censoring imputation
 
