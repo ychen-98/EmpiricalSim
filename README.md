@@ -25,7 +25,7 @@ A two-stage adaptive grid search finds the optimal distortion parameters (alpha,
 
 | File | Description |
 |------|-------------|
-| `empirical_simulation.R` | Core framework — all functions |
+| `empirical_simulation_survival.R` | Core framework — all functions |
 | `example_usage.R` | Seven worked examples covering all input paths |
 
 ## Quick Start
@@ -33,7 +33,7 @@ A two-stage adaptive grid search finds the optimal distortion parameters (alpha,
 ### Survival data with published percentiles (most common use case)
 
 ```r
-source("empirical_simulation.R")
+source("empirical_simulation_survival.R")
 
 # Target from a published KM curve — no patient data needed
 target_pctl <- data.frame(
