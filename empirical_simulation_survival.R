@@ -1,5 +1,5 @@
 ################################################################################################
-####  empirical_simulation.R
+####  empirical_simulation_survival.R
 ####  Unified Empirical Simulation Framework
 ####  Supports: continuous, binary, ordinal, survival data types
 ####  Use cases:
@@ -358,34 +358,39 @@ compute_scaling <- function(hist_data, target_val_low, target_val_high,
 #' \eqn{Y = X * tau + delta} where tau and delta map the range of the
 #' reference (global) data to the range of the target (local) data.
 #'
-#' @param dat_target  Target data frame (columns = variables).
-#' @param dat_ref     Reference data frame (same column order).
+#' Only the min and max of both the target and reference are needed.
+#'
+#' @param target_mins  Numeric vector of target minimums (one per column).
+#' @param target_maxs  Numeric vector of target maximums (one per column).
+#' @param dat_ref      Reference data frame (same column order).
+#' @param col_names    Optional column names for output labelling.
 #'
 #' @return List with numeric vectors \code{tau} and \code{delta},
 #'   one element per column.
-compute_scaling_range <- function(dat_target, dat_ref) {
-  stopifnot(ncol(dat_target) == ncol(dat_ref))
-  p <- ncol(dat_target)
+compute_scaling_range <- function(target_mins, target_maxs, dat_ref,
+                                  col_names = NULL) {
+  p <- ncol(dat_ref)
+  stopifnot(length(target_mins) == p, length(target_maxs) == p)
   
   tau   <- numeric(p)
   delta <- numeric(p)
   
   for (i in seq_len(p)) {
-    range_tar <- range(dat_target[, i], na.rm = TRUE)
-    range_ref <- range(dat_ref[, i],    na.rm = TRUE)
+    range_ref <- range(dat_ref[, i], na.rm = TRUE)
     
     denom <- diff(range_ref)
     if (abs(denom) < .Machine$double.eps) {
       tau[i]   <- 1
-      delta[i] <- range_tar[1] - range_ref[1]
+      delta[i] <- target_mins[i] - range_ref[1]
     } else {
-      tau[i]   <- diff(range_tar) / denom
-      delta[i] <- range_tar[1] - range_ref[1] * tau[i]
+      tau[i]   <- (target_maxs[i] - target_mins[i]) / denom
+      delta[i] <- target_mins[i] - range_ref[1] * tau[i]
     }
   }
   
-  names(tau)   <- colnames(dat_target)
-  names(delta) <- colnames(dat_target)
+  nms <- if (!is.null(col_names)) col_names else colnames(dat_ref)
+  names(tau)   <- nms
+  names(delta) <- nms
   list(tau = tau, delta = delta)
 }
 
@@ -1223,26 +1228,30 @@ run_survival_sim <- function(target_percentiles = NULL,
 
 #' Extract Target Summary Statistics from a Data Frame
 #'
-#' Convenience function to compute per-column mean and SD from a target
-#' data frame, for use as \code{target_means} / \code{target_sds} in
+#' Convenience function to compute per-column mean, SD, min, and max
+#' from a target data frame, for use as \code{target_means},
+#' \code{target_sds}, \code{target_mins}, \code{target_maxs} in
 #' \code{run_simulation()}.  Binary columns with zero SD are replaced
 #' with the Bernoulli SD.
 #'
 #' @param dat_target  Target data frame.
 #' @param types       Character vector of column types.
-#' @return List with vectors \code{means} and \code{sds}.
+#' @return List with vectors \code{means}, \code{sds}, \code{mins},
+#'   \code{maxs}.
 extract_target_summaries <- function(dat_target, types) {
   p <- ncol(dat_target)
-  means <- sds <- numeric(p)
+  means <- sds <- mins <- maxs <- numeric(p)
   for (j in seq_len(p)) {
     means[j] <- mean(dat_target[, j], na.rm = TRUE)
     sds[j]   <- sd(dat_target[, j], na.rm = TRUE)
+    mins[j]  <- min(dat_target[, j], na.rm = TRUE)
+    maxs[j]  <- max(dat_target[, j], na.rm = TRUE)
     if (types[j] == "binary" && (is.na(sds[j]) || sds[j] == 0)) {
       sds[j] <- sqrt(means[j] * (1 - means[j]))
     }
   }
-  names(means) <- names(sds) <- colnames(dat_target)
-  list(means = means, sds = sds)
+  names(means) <- names(sds) <- names(mins) <- names(maxs) <- colnames(dat_target)
+  list(means = means, sds = sds, mins = mins, maxs = maxs)
 }
 
 
@@ -1256,16 +1265,16 @@ extract_target_summaries <- function(dat_target, types) {
 #' any mix of continuous, binary, ordinal, and survival columns.
 #'
 #' \strong{Primary interface (summary statistics):}
-#'   For non-survival columns, supply \code{target_means} and
-#'   \code{target_sds} (numeric vectors, one element per non-survival
-#'   column).  For survival columns, supply
-#'   \code{surv_target_percentiles} (a data.frame with \code{q_level}
-#'   and \code{time_val}).
+#'   For non-survival columns, supply \code{target_means},
+#'   \code{target_sds}, \code{target_mins}, and \code{target_maxs}
+#'   (numeric vectors, one element per non-survival column).
+#'   For survival columns, supply \code{surv_target_percentiles}
+#'   (a data.frame with \code{q_level} and \code{time_val}).
 #'
 #' \strong{Backup interface (raw data):}
 #'   Optionally supply \code{dat_target} — a data frame from which
-#'   target means, SDs, and survival KM percentiles are extracted
-#'   automatically via \code{extract_target_summaries()} and
+#'   target means, SDs, mins, maxs, and survival KM percentiles are
+#'   extracted automatically via \code{extract_target_summaries()} and
 #'   \code{extract_km_percentiles()}.
 #'
 #' @param dat_ref       Reference data frame (historical / global control).
@@ -1275,9 +1284,13 @@ extract_target_summaries <- function(dat_target, types) {
 #'   columns (length = number of non-survival columns).
 #' @param target_sds    Numeric vector of target SDs for non-survival
 #'   columns (length = number of non-survival columns).
+#' @param target_mins   Numeric vector of target minimums for non-survival
+#'   columns (required for \code{scaling_method = "range"}).
+#' @param target_maxs   Numeric vector of target maximums for non-survival
+#'   columns (required for \code{scaling_method = "range"}).
 #' @param dat_target    Optional backup: target data frame for automatic
-#'   extraction of means, SDs, and survival data.
-#' @param scaling_method  \code{"range"} (requires \code{dat_target}),
+#'   extraction of means, SDs, mins, maxs, and survival data.
+#' @param scaling_method  \code{"range"} (default; uses target_mins/target_maxs),
 #'   \code{"summary"} (uses target_means to derive delta; tau = 1), or
 #'   \code{"manual"} (supply \code{tau_manual}/\code{delta_manual}).
 #' @param tau_manual,delta_manual  Optional manual tau/delta vectors.
@@ -1298,8 +1311,9 @@ extract_target_summaries <- function(dat_target, types) {
 #'   type_results (per-column search details), surv_pipeline (if applicable).
 run_simulation <- function(dat_ref, types, N_sim = 5000,
                            target_means = NULL, target_sds = NULL,
+                           target_mins = NULL, target_maxs = NULL,
                            dat_target = NULL,
-                           scaling_method = "summary",
+                           scaling_method = "range",
                            tau_manual = NULL, delta_manual = NULL,
                            surv_target_percentiles = NULL,
                            surv_target_time = NULL, surv_target_status = NULL,
@@ -1320,16 +1334,32 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
   # RESOLVE TARGET SUMMARIES for non-survival columns
   # =======================================================================
   if (length(nonsurv_cols) > 0) {
-    if (is.null(target_means) || is.null(target_sds)) {
+    needs_mean_sd  <- is.null(target_means) || is.null(target_sds)
+    needs_min_max  <- (scaling_method == "range") &&
+                      (is.null(target_mins) || is.null(target_maxs))
+    
+    if (needs_mean_sd || needs_min_max) {
       if (is.null(dat_target)) {
-        stop("For non-survival columns, provide either target_means/target_sds ",
-             "or dat_target for automatic extraction.")
+        if (needs_mean_sd) {
+          stop("For non-survival columns, provide target_means/target_sds ",
+               "or dat_target for automatic extraction.")
+        }
+        if (needs_min_max) {
+          stop("scaling_method='range' requires target_mins/target_maxs ",
+               "or dat_target for automatic extraction.")
+        }
       }
-      if (verbose) cat("Extracting target means/SDs from dat_target...\n")
+      if (verbose) cat("Extracting target summaries from dat_target...\n")
       summ <- extract_target_summaries(dat_target[, nonsurv_cols, drop = FALSE],
                                        types[nonsurv_cols])
-      target_means <- summ$means
-      target_sds   <- summ$sds
+      if (needs_mean_sd) {
+        target_means <- summ$means
+        target_sds   <- summ$sds
+      }
+      if (needs_min_max) {
+        target_mins <- summ$mins
+        target_maxs <- summ$maxs
+      }
     }
     
     # Validate lengths
@@ -1338,10 +1368,19 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
       stop("target_means and target_sds must have length = ",
            length(nonsurv_cols), " (one per non-survival column).")
     }
+    if (scaling_method == "range") {
+      if (length(target_mins) != length(nonsurv_cols) ||
+          length(target_maxs) != length(nonsurv_cols)) {
+        stop("target_mins and target_maxs must have length = ",
+             length(nonsurv_cols), " (one per non-survival column).")
+      }
+    }
     
     # Name them for clarity
     names(target_means) <- col_names[nonsurv_cols]
     names(target_sds)   <- col_names[nonsurv_cols]
+    if (!is.null(target_mins)) names(target_mins) <- col_names[nonsurv_cols]
+    if (!is.null(target_maxs)) names(target_maxs) <- col_names[nonsurv_cols]
   }
   
   # =======================================================================
@@ -1349,12 +1388,9 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
   # =======================================================================
   if (length(nonsurv_cols) > 0) {
     if (scaling_method == "range") {
-      if (is.null(dat_target)) {
-        stop("scaling_method='range' requires dat_target. ",
-             "Use 'summary' or 'manual' instead.")
-      }
-      sc <- compute_scaling_range(dat_target[, nonsurv_cols, drop = FALSE],
-                                  dat_ref[, nonsurv_cols, drop = FALSE])
+      sc <- compute_scaling_range(target_mins, target_maxs,
+                                  dat_ref[, nonsurv_cols, drop = FALSE],
+                                  col_names = col_names[nonsurv_cols])
       tau_ns   <- sc$tau
       delta_ns <- sc$delta
       
@@ -1530,6 +1566,8 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
        types = types,
        target_means = if (length(nonsurv_cols) > 0) target_means else NULL,
        target_sds   = if (length(nonsurv_cols) > 0) target_sds   else NULL,
+       target_mins  = if (length(nonsurv_cols) > 0) target_mins  else NULL,
+       target_maxs  = if (length(nonsurv_cols) > 0) target_maxs  else NULL,
        type_results = type_results,
        surv_pipeline = surv_pipeline)
 }
