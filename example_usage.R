@@ -138,6 +138,8 @@ col_types <- c("survival", "continuous", "binary", "ordinal")
 # Order matches non-survival columns: age, sex, ecog
 tgt_means <- c(age = 55.0, sex = 0.50, ecog = 0.90)
 tgt_sds   <- c(age = 8.0,  sex = 0.50, ecog = 0.70)
+tgt_mins  <- c(age = 25.0, sex = 0.0,  ecog = 0.0)
+tgt_maxs  <- c(age = 85.0, sex = 1.0,  ecog = 2.0)
 
 # Target survival percentiles (same as Example 1)
 surv_pctl <- data.frame(
@@ -147,6 +149,8 @@ surv_pctl <- data.frame(
 
 cat("Target means:", tgt_means, "\n")
 cat("Target SDs:  ", tgt_sds, "\n")
+cat("Target mins: ", tgt_mins, "\n")
+cat("Target maxs: ", tgt_maxs, "\n")
 cat("Survival percentiles:\n")
 print(surv_pctl)
 cat("\n")
@@ -161,7 +165,9 @@ result_3 <- run_simulation(
   N_sim         = 5000,
   target_means  = tgt_means,
   target_sds    = tgt_sds,
-  scaling_method = "summary",
+  target_mins   = tgt_mins,
+  target_maxs   = tgt_maxs,
+  scaling_method = "range",
   surv_target_percentiles = surv_pctl,
   surv_time_col    = "time",
   surv_status_col  = NULL,            # fully imputed, not needed
@@ -239,7 +245,9 @@ result_5 <- run_simulation(
   N_sim          = 3000,
   target_means   = c(age = 58.0, sex = 0.55, ecog = 0.80),
   target_sds     = c(age = 9.0,  sex = 0.50, ecog = 0.65),
-  scaling_method = "summary",
+  target_mins    = c(age = 30.0, sex = 0.0,  ecog = 0.0),
+  target_maxs    = c(age = 88.0, sex = 1.0,  ecog = 2.0),
+  scaling_method = "range",
   verbose        = TRUE
 )
 
@@ -263,7 +271,9 @@ summ <- extract_target_summaries(dat_target_demo[, c("age", "sex", "ecog")],
                                  types = c("continuous", "binary", "ordinal"))
 cat("Extracted from dat_target_demo:\n")
 cat("  means:", summ$means, "\n")
-cat("  sds:  ", summ$sds, "\n\n")
+cat("  sds:  ", summ$sds, "\n")
+cat("  mins: ", summ$mins, "\n")
+cat("  maxs: ", summ$maxs, "\n\n")
 
 # Now use these in a new simulation
 result_6 <- run_simulation(
@@ -272,7 +282,9 @@ result_6 <- run_simulation(
   N_sim          = 3000,
   target_means   = summ$means,
   target_sds     = summ$sds,
-  scaling_method = "summary",
+  target_mins    = summ$mins,
+  target_maxs    = summ$maxs,
+  scaling_method = "range",
   verbose        = FALSE
 )
 
