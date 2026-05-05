@@ -1290,8 +1290,7 @@ extract_target_summaries <- function(dat_target, types) {
 #'   columns (required for \code{scaling_method = "range"}).
 #' @param dat_target    Optional backup: target data frame for automatic
 #'   extraction of means, SDs, mins, maxs, and survival data.
-#' @param scaling_method  \code{"range"} (default; uses target_mins/target_maxs),
-#'   \code{"summary"} (uses target_means to derive delta; tau = 1), or
+#' @param scaling_method  \code{"range"} (default; uses target_mins/target_maxs), or
 #'   \code{"manual"} (supply \code{tau_manual}/\code{delta_manual}).
 #' @param tau_manual,delta_manual  Optional manual tau/delta vectors.
 #' @param surv_target_percentiles  Data.frame with \code{q_level} and
@@ -1393,14 +1392,6 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
                                   col_names = col_names[nonsurv_cols])
       tau_ns   <- sc$tau
       delta_ns <- sc$delta
-      
-    } else if (scaling_method == "summary") {
-      # tau = 1, delta = shift to match target mean
-      tau_ns   <- rep(1, length(nonsurv_cols))
-      ref_means <- colMeans(dat_ref[, nonsurv_cols, drop = FALSE], na.rm = TRUE)
-      delta_ns  <- target_means - ref_means
-      names(tau_ns)   <- col_names[nonsurv_cols]
-      names(delta_ns) <- col_names[nonsurv_cols]
       
     } else if (scaling_method == "manual") {
       stopifnot(!is.null(tau_manual), !is.null(delta_manual))
