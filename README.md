@@ -180,7 +180,6 @@ The `scaling_method` parameter in `run_simulation()` controls how tau and delta 
 | Method | Description | Required inputs |
 |--------|-------------|----------------|
 | `"range"` (default) | Maps reference min/max to target min/max | `target_mins`, `target_maxs` |
-| `"summary"` | tau = 1, delta = target_mean − reference_mean | `target_means` only |
 | `"manual"` | User-supplied `tau_manual` / `delta_manual` | `tau_manual`, `delta_manual` |
 
 All methods also require `target_means` and `target_sds` for the alpha/beta shape-matching step. The scaling method only affects how tau and delta are derived.
