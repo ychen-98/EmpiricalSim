@@ -1,0 +1,30 @@
+Package: EmpiricalSimSurv
+Type: Package
+Title: Empirical Copula-Based Simulation for Survival and Mixed Clinical Trial Data
+Version: 0.1.0
+Authors@R: c(
+    person("Yao", "Chen", email = "emmachenyao@gmail.com", role = c("aut", "cre")),
+    person("Y.", "Ding", role = "ctb"),
+    person("Y.", "Liu", role = "ctb"),
+    person("Y.", "Qu",  role = "ctb")
+  )
+Description: Generates simulated clinical trial data that matches target summary
+    statistics without requiring patient-level target data. Supports continuous,
+    binary, ordinal, and survival endpoints individually or in any combination.
+    A power-distortion transformation on the probability integral maps a
+    historical reference distribution to the target via a two-stage adaptive
+    grid search. Reference: Ding Y, Liu Y, Qu Y (2025),
+    Communications in Statistics - Simulation and Computation.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1.2)
+Imports:
+    MASS,
+    survival,
+    stats,
+    utils,
+    flexsurv
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
