@@ -220,6 +220,11 @@ run_survival_sim <- function(target_percentiles = NULL,
 #' @param search_settings  List of grid search settings for non-survival
 #'   columns passed to \code{find_alpha_beta()}.
 #' @param cor_method    \code{"rank"} or \code{"identity"}.
+#' @param impute_ref    Logical. If TRUE (default), missing (\code{NA}/\code{NaN})
+#'   values in non-survival reference columns are filled via
+#'   \code{\link{impute_missing}} before fitting. Survival columns are skipped.
+#' @param impute_settings  List of options passed to \code{impute_missing}
+#'   (e.g. \code{continuous_method}, \code{max_missing_frac}).
 #' @param verbose       Print diagnostics.
 #'
 #' @return List: sim_data (data.frame), alpha, beta, tau, delta,
@@ -237,6 +242,8 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
                            surv_settings = list(),
                            search_settings = list(),
                            cor_method = "rank",
+                           impute_ref = TRUE,
+                           impute_settings = list(),
                            verbose = TRUE) {
 
   p <- ncol(dat_ref)
@@ -246,6 +253,37 @@ run_simulation <- function(dat_ref, types, N_sim = 5000,
   surv_cols <- which(types == "survival")
   nonsurv_cols <- which(types != "survival")
 
+  # =======================================================================
+  # IMPUTE MISSING VALUES in non-survival reference columns
+  # (generate_data / find_alpha_beta require complete columns)
+  # =======================================================================
+  if (impute_ref && length(nonsurv_cols) > 0) {
+    ns_has_na <- any(vapply(dat_ref[, nonsurv_cols, drop = FALSE],
+                            function(x) any(is.na(x)), logical(1)))
+    if (ns_has_na) {
+      imp_defaults <- list(continuous_method = "mean",
+                           max_missing_frac = 0.5)
+      imp_cfg <- utils::modifyList(imp_defaults, impute_settings)
+      skip_surv <- col_names[surv_cols]
+      imp_out <- impute_missing(
+        dat = dat_ref, types = types,
+        continuous_method = imp_cfg$continuous_method,
+        skip_cols = skip_surv,
+        max_missing_frac = imp_cfg$max_missing_frac,
+        verbose = verbose)
+      dat_ref <- imp_out$data
+      if (imp_out$any_remaining) {
+        ns_still <- any(vapply(dat_ref[, nonsurv_cols, drop = FALSE],
+                               function(x) any(is.na(x)), logical(1)))
+        if (ns_still) {
+          stop("Non-survival reference columns still contain NA/NaN after ",
+               "imputation. Inspect impute_missing() report or set ",
+               "impute_ref = FALSE and clean the data manually.")
+        }
+      }
+    }
+  }
+ 
   # =======================================================================
   # RESOLVE TARGET SUMMARIES for non-survival columns
   # =======================================================================

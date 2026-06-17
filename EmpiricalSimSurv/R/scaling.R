@@ -30,14 +30,26 @@ compute_scaling <- function(hist_data, target_val_low, target_val_high,
     hist_val_low  <- stats::quantile(hist_data, q_scale_range[1], names = FALSE)
     hist_val_high <- stats::quantile(hist_data, q_scale_range[2], names = FALSE)
   }
-
-  tau   <- (log(target_val_high) - log(target_val_low)) /
-    (log(hist_val_high)   - log(hist_val_low))
-  delta <- log(target_val_low) - log(hist_val_low) * tau
-
+  
+  denom <- log(hist_val_high) - log(hist_val_low)
+  if (!is.finite(denom) || abs(denom) < .Machine$double.eps) {
+    warning("compute_scaling: historical scaling quantiles are equal or non-finite ",
+            "(hist_val_low = ", signif(hist_val_low, 6),
+            ", hist_val_high = ", signif(hist_val_high, 6), "). ",
+            "Cannot estimate a log-linear slope; falling back to tau = 1 ",
+            "(no rescaling) with delta aligning the lower target. ",
+            "Consider widening q_scale_range or supplying less granular data.")
+    tau   <- 1
+    delta <- log(target_val_low) - log(hist_val_low) * tau
+  } else {
+    tau   <- (log(target_val_high) - log(target_val_low)) / denom
+    delta <- log(target_val_low) - log(hist_val_low) * tau
+  }
+ 
   list(tau = tau, delta = delta,
        hist_val_low = hist_val_low, hist_val_high = hist_val_high)
 }
+ 
 
 
 #' Compute Simple Range-Based Scaling (tau, delta) for Non-Survival Data

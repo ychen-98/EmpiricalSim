@@ -11,32 +11,43 @@ tail_weighted_aic <- function(fit, obs_time, status,
                               tail_start, multiplier = 3) {
   if (is.null(fit)) return(Inf)
   if (tail_start <= 0 || multiplier <= 1) return(stats::AIC(fit))
-
-  pars <- fit$res[, "est"]
+  
+# --- Extract ONLY the baseline distribution parameters, by name ----------
+  # fit$res holds natural-scale estimates (what the d/p functions expect);
+  # fit$dlist$pars names them in the exact order the d/p functions accept.
+  # Subsetting by name avoids misalignment when covariates add extra rows
+  # (e.g. gengamma's mu/sigma/Q or gompertz's shape/rate vs. coefficients).
+  par_names <- fit$dlist$pars
+  if (is.null(par_names)) {
+    par_names <- rownames(fit$res)            # fallback: assume no covariates
+  }
+  est_vec <- fit$res[par_names, "est"]
+  pars    <- as.list(est_vec)
+  names(pars) <- par_names                    # ensure named for do.call
+ 
   dfn  <- fit$dfns$d
   pfn  <- fit$dfns$p
-
+ 
   n    <- length(obs_time)
   ll_i <- numeric(n)
-
+ 
   for (j in seq_len(n)) {
     if (status[j] == 1) {
-      val <- do.call(dfn, c(list(x = obs_time[j]), as.list(pars), list(log = TRUE)))
+      val <- do.call(dfn, c(list(x = obs_time[j]), pars, list(log = TRUE)))
       ll_i[j] <- val
     } else {
-      val <- do.call(pfn, c(list(q = obs_time[j]), as.list(pars), list(lower.tail = FALSE, log.p = TRUE)))
+      val <- do.call(pfn, c(list(q = obs_time[j]), pars, list(lower.tail = FALSE, log.p = TRUE)))
       ll_i[j] <- val
     }
   }
-
+ 
   weights <- rep(1, n)
   weights[obs_time >= tail_start] <- multiplier
   weighted_ll <- sum(weights * ll_i)
-
+ 
   k <- length(pars)
   -2 * weighted_ll + 2 * k
 }
-
 
 #' Impute Censored Observations Using KM Tail with Parametric Fallback
 #'
